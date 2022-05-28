@@ -1,5 +1,5 @@
-`include "dual_port_ram.sv"
-`include "shift_register.sv"
+//`include "dual_port_ram.sv"
+//`include "shift_register.sv"
 module async_fifo#(
   parameter DATA_WIDTH = 32,   // width of each data element in FIFO Memory
   parameter FIFO_DEPTH = 16)   // Number of locations in FIFO Memory
@@ -38,21 +38,31 @@ module async_fifo#(
  // If reset == 1 then assign 0 to wr_ptr
  always_ff@(posedge wr_clk,posedge reset) begin
    // Student to add code
-
+  if (reset == 1)
+    wr_ptr <= 0;
+  else begin
+    if (wr_en == 1)
+      wr_ptr <= wr_ptr + 1;
+  end
  end
  
 
  // Step-2 : Convert write pointer to gray value from binary write pointer value before 
  // sending write pointer to rd_clk domain through 2-FlipFlip synchronizer
  // use binary_to_gray function
- assign wr_ptr_gray =  // Student to add code
+ assign wr_ptr_gray =  binary_to_gray(wr_ptr); // Student to add code
  
   
  // Step-3 : Increment read pointer each time rd_en is '1' (binary counter)
  // If reset == 1then assign 0 to rd_ptr
  always_ff@(posedge rd_clk,posedge reset) begin
      // Student to add code
-
+  if (reset == 1)
+    rd_ptr <= 0;
+  else begin
+    if (rd_en == 1)
+      rd_ptr <= rd_ptr + 1;
+  end
 
  end
  
@@ -60,30 +70,30 @@ module async_fifo#(
  // Step-4 : Convert read pointer to gray value from binary read pointer value before
  // sending read pointer to wr_clk domain through 2-FlipFlip synchronizer
  // use binary_to_gray function
- assign rd_ptr_gray =  // Student to add code
+ assign rd_ptr_gray =  binary_to_gray(rd_ptr); // Student to add code
  
 
  // Step-5 : Geneate fifo empty flag
  // The FIFO is empty when both read and write pointers point to the same location
- assign t_fifo_empty =  // Student to add code
+ assign t_fifo_empty =  (rd_ptr == wr_ptr); // Student to add code
 
 
  // Step-6 : Assert output signal fifo_almost_empty
  // FIFO Almost empty is generated simulataneously when the very last data available in fifo is read
  // hence it is named as fifo almost empty. In another words, one cycle before fifo is actually empty
- assign fifo_almost_empty =  // Student to add code
+ assign fifo_almost_empty =  (wr_ptr - rd_ptr == 1); // Student to add code
  
  
  // Step-7 : Generate fifo full flag 
  // FIFO is full when wr_ptr - rd_ptr = 2^address_width.  
  // In that case, the Lower address bits are identical, but the MSB address bit is different.
- assign t_fifo_full  =   // Student to add code
+ assign t_fifo_full  = (wr_ptr - rd_ptr == 2**ADDR_WIDTH); // Student to add code
    
 
  // Step-8 : Assert almost full flag 
  // FIFO Almost full is generated simulataneously when the very last location in fifo is written with data
  // hence it is named as fifo almost full. In another words, one cycle before the fifo is actually full
- assign fifo_almost_full =  // Student to add code
+ assign fifo_almost_full =  (wr_ptr - rd_ptr == 2**ADDR_WIDTH - 1); // Student to add code
 	
 
  // Step-9 : Instantiate FIFO Memory (Upon synthesis this will result in dual port distributed RAM since read from memory is asynchronous)
@@ -99,8 +109,14 @@ module async_fifo#(
    .ADDR_WIDTH(ADDR_WIDTH)) 
  fifo_memory_inst(
      // Student to add code
-
-
+    .wr_clk(wr_clk),
+    .reset(reset),
+    .wr_en(wr_en && !fifo_full),
+    .write_data(data_in),
+    .write_addr(wr_ptr),
+    .rd_en(rd_en && !fifo_empty),
+    .read_addr(rd_ptr),
+    .read_data(data_out)
  );
  
  
@@ -121,7 +137,7 @@ module async_fifo#(
  // Step-11 : Convert synchronized write pointer gray value available from Step-10, back to binary value
  // Prior to generation for fifo empty flag, synchronized gray write pointer value is converted first to binary write pointer value
  // use gray_to_binary function
- assign wr_ptr_binary2 =  // Student to add code
+ assign wr_ptr_binary2 =  gray_to_binary(wr_ptr_gray2); // Student to add code
  
 
  // Step-12 : Synchronize rd_ptr to wr_clk domain
@@ -133,14 +149,20 @@ module async_fifo#(
   // Student to add code here similar to wr_ptr to rd_clk domain synchronizatio add code here for rd_ptr to wr_clk synchronization
   // Note : This is a 2 Flip flip stage synchronization. So NUM_OF_STAGES parameter for shift register should be 2
   // Remember to connect clk of shift register to "wr_clk", since rd_ptr_gray is sent to wr_clk domain through this synchronizer
-
+  .WIDTH(ADDR_WIDTH),
+  .NUM_OF_STAGES(2))
+  rd_ptr_synchronizer_inst(
+    .clk(wr_clk),
+    .reset(reset),
+    .d(rd_ptr_gray),
+    .q(rd_ptr_gray2)
  );
  
 
  // Step-13 : Convert synchronized read pointer gray value available from Step-12, back to binary value
  // Prior to generation for fifo full flag, synchronized gray read pointer value is converted first to binary read pointer value
  //  use gray to binary function
- assign rd_ptr_binary2 =  // Student to add code
+ assign rd_ptr_binary2 =  gray_to_binary(rd_ptr_gray2); // Student to add code
  
 
  // Step-14 : Delay fifo almost empty (t_fifo_empty) by 1 clock cycle to generate fifo_empty output signal
@@ -162,7 +184,14 @@ module async_fifo#(
  // RESET_VALUE should be set to '0', since by default out of reset, FIFO is not in full state.
  shift_register #(
     // Student to add code here. Similar to fifo_empty code above, add code for fifo_full 
-
+    .WIDTH(1),
+    .NUM_OF_STAGES(1),
+    .RESET_VALUE(1))
+    fifo_full_inst(
+      .clk(rd_clk),
+      .reset(reset),
+      .d(t_fifo_full),
+      .q(fifo_full)
  );
  
  // finction to convert binary to gray function
