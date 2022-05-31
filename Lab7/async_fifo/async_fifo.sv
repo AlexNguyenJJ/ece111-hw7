@@ -75,25 +75,25 @@ module async_fifo#(
 
  // Step-5 : Geneate fifo empty flag
  // The FIFO is empty when both read and write pointers point to the same location
- assign t_fifo_empty =  (rd_ptr == wr_ptr); // Student to add code
+ assign t_fifo_empty =  (rd_ptr == wr_ptr_binary2) ? 1 : 0; // Student to add code
 
 
  // Step-6 : Assert output signal fifo_almost_empty
  // FIFO Almost empty is generated simulataneously when the very last data available in fifo is read
  // hence it is named as fifo almost empty. In another words, one cycle before fifo is actually empty
- assign fifo_almost_empty =  (wr_ptr - rd_ptr == 1); // Student to add code
+ assign fifo_almost_empty =  t_fifo_empty; // Student to add code
  
  
  // Step-7 : Generate fifo full flag 
  // FIFO is full when wr_ptr - rd_ptr = 2^address_width.  
  // In that case, the Lower address bits are identical, but the MSB address bit is different.
- assign t_fifo_full  = (wr_ptr - rd_ptr == 2**ADDR_WIDTH); // Student to add code
+ assign t_fifo_full  = ((wr_ptr[ADDR_WIDTH] != rd_ptr_binary2[ADDR_WIDTH]) && (wr_ptr[ADDR_WIDTH-1:0] == rd_ptr_binary2[ADDR_WIDTH-1:0])) ? 1 : 0; // Student to add code
    
 
  // Step-8 : Assert almost full flag 
  // FIFO Almost full is generated simulataneously when the very last location in fifo is written with data
  // hence it is named as fifo almost full. In another words, one cycle before the fifo is actually full
- assign fifo_almost_full =  (wr_ptr - rd_ptr == 2**ADDR_WIDTH - 1); // Student to add code
+ assign fifo_almost_full =  t_fifo_full; // Student to add code
 	
 
  // Step-9 : Instantiate FIFO Memory (Upon synthesis this will result in dual port distributed RAM since read from memory is asynchronous)
@@ -186,9 +186,9 @@ module async_fifo#(
     // Student to add code here. Similar to fifo_empty code above, add code for fifo_full 
     .WIDTH(1),
     .NUM_OF_STAGES(1),
-    .RESET_VALUE(1))
+    .RESET_VALUE(0))
     fifo_full_inst(
-      .clk(rd_clk),
+      .clk(wr_clk),
       .reset(reset),
       .d(t_fifo_full),
       .q(fifo_full)
